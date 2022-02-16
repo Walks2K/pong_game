@@ -4,6 +4,7 @@ Pong game in PyGame
 
 
 import pygame
+import pygame.gfxdraw
 import random
 
 
@@ -25,92 +26,119 @@ FPS = 60
 pygame.font.init()
 
 
-class Ball:
+class Ball(pygame.sprite.Sprite):
     """
     Ball class
     """
 
-    def __init__(self, x, y, radius, screen, colour=WHITE):
-        self.x = x
-        self.y = y
-        self.radius = radius
-        self.screen = screen
-        self.colour = colour
+    def __init__(self, radius=10, colour=WHITE, movement_speed=6):
+        super().__init__()
 
-        self.dx = random.choice([-6, 6])
-        self.dy = random.choice([-6, 6])
+        self.image = pygame.Surface((radius * 2, radius * 2))
+        self.image.fill(colour)
 
-    def move(self):
+        self.rect = self.image.get_rect()
+        self.rect.center = (WIDTH / 2, HEIGHT / 2)
+
+        self.movement_speed = movement_speed
+        self.x_vel = random.choice([-self.movement_speed, self.movement_speed])
+        self.y_vel = random.choice([-self.movement_speed, self.movement_speed])
+
+    def update(self, paddles=None):
         """
-        Move ball
+        Process ball movement - bouncing off paddles and walls
         """
-        self.x += self.dx
-        self.y += self.dy
+        self.rect.x += self.x_vel
+        self.rect.y += self.y_vel
+
+        if self.rect.top < 0 or self.rect.bottom > HEIGHT:
+            self.y_vel *= -1
+            self.rect.y += self.y_vel
+
+        if paddles is not None:
+            for paddle in paddles:
+                if self.rect.colliderect(paddle.rect):
+                    self.x_vel *= -1
+                    self.rect.x += self.x_vel
+                    self.y_vel *= -1
+                    self.rect.y += self.y_vel
 
     def draw(self, screen):
         """
         Draw ball
         """
-        pygame.draw.circle(screen, self.colour, (self.x, self.y), self.radius)
-
-    def bounce(self, paddles):
-        """
-        Bounce ball off top/bottom or paddles
-        """
-        if self.y <= self.radius:
-            self.dy = -self.dy
-        elif self.y >= self.screen.get_height() - self.radius:
-            self.dy = -self.dy
-
-        for paddle in paddles:
-            if self.x >= paddle.x - self.radius and self.x <= paddle.x + paddle.width + self.radius:
-                if self.y >= paddle.y - self.radius and self.y <= paddle.y + paddle.height + self.radius:
-                    self.dx = -self.dx
+        pygame.gfxdraw.aacircle(screen, self.rect.centerx,
+                                self.rect.centery, self.rect.width // 2, WHITE)
+        pygame.gfxdraw.filled_circle(
+            screen, self.rect.centerx, self.rect.centery, self.rect.width // 2, WHITE)
 
     def reset(self):
         """
         Reset ball
         """
-        self.x = self.screen.get_width() / 2
-        self.y = self.screen.get_height() / 2
-        self.dx = random.choice([-6, 6])
-        self.dy = random.choice([-6, 6])
+        self.rect.center = (WIDTH / 2, HEIGHT / 2)
+        self.x_vel = random.choice([-self.movement_speed, self.movement_speed])
+        self.y_vel = random.choice([-self.movement_speed, self.movement_speed])
 
 
-class Paddle:
+class Paddle(pygame.sprite.Sprite):
     """
     Paddle class
     """
 
-    def __init__(self, x, y, width, height, screen, colour=WHITE):
-        self.x = x
-        self.y = y
-        self.width = width
-        self.height = height
-        self.screen = screen
-        self.colour = colour
+    def __init__(self, x, y, width=10, height=100, colour=WHITE, movement_speed=5):
+        super().__init__()
 
-        self.movement_speed = 5
-        self.dy = 0
-        self.score = 0
+        self.image = pygame.Surface((width, height))
+        self.image.fill(colour)
 
-    def move(self):
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+
+        self.movement_speed = movement_speed
+        self.y_vel = 0
+
+    def update(self):
         """
-        Move paddle - ensuring it stays within bounds
+        Update paddle position - ensuring it stays within the screen
         """
-        self.y += self.dy
+        self.rect.y += self.y_vel
 
-        if self.y <= 0:
-            self.y = 0
-        elif self.y + self.height >= self.screen.get_height():
-            self.y = self.screen.get_height() - self.height
+        if self.rect.top <= 0:
+            self.rect.top = 0
+        elif self.rect.bottom >= HEIGHT:
+            self.rect.bottom = HEIGHT
+
+    def move_up(self):
+        """
+        Move paddle up
+        """
+        self.y_vel = -self.movement_speed
+
+    def move_down(self):
+        """
+        Move paddle down
+        """
+        self.y_vel = self.movement_speed
+
+    def move_stop(self):
+        """
+        Stop paddle
+        """
+        self.y_vel = 0
 
     def draw(self, screen):
         """
         Draw paddle
         """
-        pygame.draw.rect(screen, self.colour,
-                         (self.x, self.y, self.width, self.height))
+        pygame.draw.rect(screen, WHITE, self.rect)
+
+    def reset(self):
+        """
+        Reset paddle
+        """
+        self.rect.center = (WIDTH / 2, HEIGHT / 2)
 
 
 class Player:
@@ -127,32 +155,15 @@ class Player:
         Handle events
         """
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_UP:
-                self.move_up()
-            elif event.key == pygame.K_DOWN:
-                self.move_down()
-
-        if event.type == pygame.KEYUP:
-            if event.key == pygame.K_UP or event.key == pygame.K_DOWN:
-                self.stop_moving()
-
-    def move_up(self):
-        """
-        Move paddle up
-        """
-        self.paddle.dy = -self.paddle.movement_speed
-
-    def move_down(self):
-        """
-        Move paddle down
-        """
-        self.paddle.dy = self.paddle.movement_speed
-
-    def stop_moving(self):
-        """
-        Stop paddle movement
-        """
-        self.paddle.dy = 0
+            if event.key == pygame.K_w or event.key == pygame.K_UP:
+                self.paddle.move_up()
+            elif event.key == pygame.K_s or event.key == pygame.K_DOWN:
+                self.paddle.move_down()
+        elif event.type == pygame.KEYUP:
+            if event.key == pygame.K_w or event.key == pygame.K_UP:
+                self.paddle.move_stop()
+            elif event.key == pygame.K_s or event.key == pygame.K_DOWN:
+                self.paddle.move_stop()
 
 
 class SimpleAI:
@@ -169,12 +180,12 @@ class SimpleAI:
         """
         Move paddle
         """
-        if self.ball.y > self.paddle.y + self.paddle.height / 2:
-            self.paddle.dy = self.paddle.movement_speed
-        elif self.ball.y < self.paddle.y + self.paddle.height / 2:
-            self.paddle.dy = -self.paddle.movement_speed
+        if self.ball.rect.centery < self.paddle.rect.centery:
+            self.paddle.move_up()
+        elif self.ball.rect.centery > self.paddle.rect.centery:
+            self.paddle.move_down()
         else:
-            self.paddle.dy = 0
+            self.paddle.move_stop()
 
 
 class Game:
@@ -191,9 +202,9 @@ class Game:
         self.screen = pygame.display.set_mode((self.width, self.height))
         pygame.display.set_caption(self.title)
 
-        self.ball = Ball(self.width / 2, self.height / 2, 10, self.screen)
-        self.paddles = [Paddle(10, self.height / 2 - 50, 10, 100, self.screen),
-                        Paddle(self.width - 20, self.height / 2 - 50, 10, 100, self.screen)]
+        self.ball = Ball()
+        self.paddles = [Paddle(20, HEIGHT / 2 - 100),
+                        Paddle(WIDTH - 20, HEIGHT / 2 - 100)]
         self.player = Player(self.paddles[0])
         self.ai = SimpleAI(self.paddles[1], self.ball)
 
@@ -224,23 +235,27 @@ class Game:
         """
         Check ball boundaries
         """
-        if self.ball.x <= 0:
+        if self.ball.rect.x <= 0:
             self.ball.reset()
             self.ai.score += 1
-        elif self.ball.x >= self.width:
+        elif self.ball.rect.x + self.ball.rect.width >= self.width:
             self.ball.reset()
             self.player.score += 1
+
+        if self.ball.rect.y <= 0:
+            self.ball.y_vel = abs(self.ball.y_vel)
+        elif self.ball.rect.y + self.ball.rect.height >= self.height:
+            self.ball.y_vel = -abs(self.ball.y_vel)
 
     def update(self):
         """
         Update game
         """
-        self.ball.move()
-        self.ball.bounce(self.paddles)
+        self.ball.update(self.paddles)
         self.check_boundaries()
 
-        self.player.paddle.move()
-        self.ai.paddle.move()
+        for paddle in self.paddles:
+            paddle.update()
 
     def draw(self):
         """
