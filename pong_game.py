@@ -42,7 +42,7 @@ class Ball(pygame.sprite.Sprite):
 
         self.movement_speed = movement_speed
         self.x_vel = random.choice([-self.movement_speed, self.movement_speed])
-        self.y_vel = random.choice([-self.movement_speed, self.movement_speed])
+        self.y_vel = 0
 
     def update(self, paddles=None):
         """
@@ -60,7 +60,9 @@ class Ball(pygame.sprite.Sprite):
                 if self.rect.colliderect(paddle.rect):
                     self.x_vel *= -1
                     self.rect.x += self.x_vel
-                    self.y_vel *= -1
+                    y_scale = (self.rect.centery - paddle.rect.centery) / \
+                        (paddle.rect.height / 2)
+                    self.y_vel = y_scale * self.movement_speed
                     self.rect.y += self.y_vel
 
     def draw(self, screen):
@@ -78,7 +80,7 @@ class Ball(pygame.sprite.Sprite):
         """
         self.rect.center = (WIDTH / 2, HEIGHT / 2)
         self.x_vel = random.choice([-self.movement_speed, self.movement_speed])
-        self.y_vel = random.choice([-self.movement_speed, self.movement_speed])
+        self.y_vel = 0
 
 
 class Paddle(pygame.sprite.Sprite):
@@ -88,6 +90,9 @@ class Paddle(pygame.sprite.Sprite):
 
     def __init__(self, x, y, width=10, height=100, colour=WHITE, movement_speed=5):
         super().__init__()
+
+        self.start_x = x
+        self.start_y = y
 
         self.image = pygame.Surface((width, height))
         self.image.fill(colour)
@@ -138,7 +143,8 @@ class Paddle(pygame.sprite.Sprite):
         """
         Reset paddle
         """
-        self.rect.center = (WIDTH / 2, HEIGHT / 2)
+        self.rect.x = self.start_x
+        self.rect.y = self.start_y
 
 
 class Player:
@@ -203,8 +209,8 @@ class Game:
         pygame.display.set_caption(self.title)
 
         self.ball = Ball()
-        self.paddles = [Paddle(20, HEIGHT / 2 - 100),
-                        Paddle(WIDTH - 20, HEIGHT / 2 - 100)]
+        self.paddles = [Paddle(20, HEIGHT / 2 - 50),
+                        Paddle(WIDTH - 20, HEIGHT / 2 - 50)]
         self.player = Player(self.paddles[0])
         self.ai = SimpleAI(self.paddles[1], self.ball)
 
@@ -237,9 +243,13 @@ class Game:
         """
         if self.ball.rect.x <= 0:
             self.ball.reset()
+            for paddle in self.paddles:
+                paddle.reset()
             self.ai.score += 1
         elif self.ball.rect.x + self.ball.rect.width >= self.width:
             self.ball.reset()
+            for paddle in self.paddles:
+                paddle.reset()
             self.player.score += 1
 
         if self.ball.rect.y <= 0:
